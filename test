@@ -1,0 +1,89 @@
+import requests
+import psycopg2
+
+# Функция для получения данных контакта из Битрикс24 по Webhook
+def get_contact_data(contact_id):
+    # URL вашего Webhook для получения данных контакта из Битрикс24
+    webhook_url = "https://your_bitrix24_domain/rest/1/token/crm.contact.get.json"
+
+    # Параметры запроса
+    params = {
+        "ID": contact_id
+    }
+
+    # Отправляем запрос
+    response = requests.get(webhook_url, params=params)
+    contact_data = response.json()
+
+    return contact_data
+
+# Функция для проверки имени контакта в базе данных PostgreSQL
+def check_name_in_database(name):
+    # Подключение к базе данных PostgreSQL
+    connection = psycopg2.connect(user="your_username",
+                                  password="your_password",
+                                  host="your_host",
+                                  port="your_port",
+                                  database="your_database")
+
+    cursor = connection.cursor()
+
+    # Проверка имени в таблице names_man
+    cursor.execute("SELECT COUNT(*) FROM names_man WHERE name = %s", (name,))
+    male_count = cursor.fetchone()[0]
+
+    # Проверка имени в таблице names_woman
+    cursor.execute("SELECT COUNT(*) FROM names_woman WHERE name = %s", (name,))
+    female_count = cursor.fetchone()[0]
+
+    connection.close()
+
+    # Определение пола на основе результата проверки имени
+    if male_count > 0:
+        return "Мужчина"
+    elif female_count > 0:
+        return "Женщина"
+    else:
+        return None
+
+# Функция для обновления данных контакта в Битрикс24 по Webhook
+def update_contact_gender(contact_id, gender):
+    # URL вашего Webhook для обновления данных контакта в Битрикс24
+    webhook_url = "https://your_bitrix24_domain/rest/1/token/crm.contact.update.json"
+
+    # Параметры запроса
+    params = {
+        "ID": contact_id,
+        "fields": {
+            "UF_GENDER": gender
+        }
+    }
+
+    # Отправляем запрос
+    response = requests.post(webhook_url, json=params)
+
+    return response.json()
+
+# Основная функция
+def main():
+    # Получение ID контакта (замените на реальный ID)
+    contact_id = "123"
+
+    # Получение данных контакта из Битрикс24
+    contact_data = get_contact_data(contact_id)
+
+    # Получение имени контакта
+    contact_name = contact_data["result"]["NAME"]
+
+    # Проверка имени контакта в базе данных
+    gender = check_name_in_database(contact_name)
+
+    if gender is not None:
+        # Обновление данных контакта в Битрикс24
+        update_contact_gender(contact_id, gender)
+        print("Пол успешно обновлен в Битрикс24.")
+    else:
+        print("Имя контакта не найдено в базе данных.")
+
+if __name__ == "__main__":
+    main()
